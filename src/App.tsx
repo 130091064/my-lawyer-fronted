@@ -15,11 +15,24 @@ type StructuredSummons = {
   rawText: string;
 };
 
+type TransitSuggestion =
+  | string
+  | {
+      line?: Nullable<string>;
+      suggestion: string;
+    };
+
+type GenericSuggestion =
+  | string
+  | {
+      suggestion: string;
+    };
+
 type TransportAdvice = {
   bestArrivalWindow: Nullable<string>;
-  publicTransit: string[];
-  driving: string[];
-  taxiOrRideHailing: string[];
+  publicTransit: Array<TransitSuggestion>;
+  driving: Array<GenericSuggestion>;
+  taxiOrRideHailing: Array<GenericSuggestion>;
   notes: string[];
 };
 
@@ -46,19 +59,17 @@ const readFileAsBase64 = (file: File) =>
   new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
     reader.onload = () => {
-      if (typeof reader.result !== "string") {
-        reject(new Error("无法读取文件内容"));
-        return;
+      const bytes = new Uint8Array(reader.result as ArrayBuffer);
+      let binary = '';
+      for (let i = 0; i < bytes.byteLength; i++) {
+        binary += String.fromCharCode(bytes[i]);
       }
-      const [, base64Payload = ""] = reader.result.split("base64,");
-      if (!base64Payload) {
-        reject(new Error("未能编码为 Base64"));
-        return;
-      }
-      resolve(base64Payload);
+      const base64 = btoa(binary);
+      resolve(base64);
     };
+    
     reader.onerror = () => reject(reader.error ?? new Error("文件读取失败"));
-    reader.readAsDataURL(file);
+    reader.readAsArrayBuffer(file);
   });
 
 type OptionToggleProps = {
@@ -114,6 +125,27 @@ function App() {
       value: result.structured[key] ?? "未提供",
     }));
   }, [result]);
+
+  const renderTransitItem = (item: TransitSuggestion, idx: number) => {
+    if (typeof item === "string") {
+      return <li key={`${item}-${idx}`}>{item}</li>;
+    }
+    const key = item.line ?? item.suggestion ?? idx;
+    return (
+      <li key={key}>
+        {item.line && <strong>{item.line}</strong>}
+        <span>{item.suggestion}</span>
+      </li>
+    );
+  };
+
+  const renderGenericSuggestion = (item: GenericSuggestion, idx: number) => {
+    if (typeof item === "string") {
+      return <li key={`${item}-${idx}`}>{item}</li>;
+    }
+    const key = item.suggestion ?? idx;
+    return <li key={key}>{item.suggestion}</li>;
+  };
 
   const handleFileChange = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -300,25 +332,25 @@ function App() {
                       <div>
                         <strong>公共交通</strong>
                         <ul>
-                          {result.transport.publicTransit.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
+                          {result.transport.publicTransit.map((item, idx) =>
+                            renderTransitItem(item, idx)
+                          )}
                         </ul>
                       </div>
                       <div>
                         <strong>自驾 / 停车</strong>
                         <ul>
-                          {result.transport.driving.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
+                          {result.transport.driving.map((item, idx) =>
+                            renderGenericSuggestion(item, idx)
+                          )}
                         </ul>
                       </div>
                       <div>
                         <strong>打车 / 网约车</strong>
                         <ul>
-                          {result.transport.taxiOrRideHailing.map((item) => (
-                            <li key={item}>{item}</li>
-                          ))}
+                          {result.transport.taxiOrRideHailing.map((item, idx) =>
+                            renderGenericSuggestion(item, idx)
+                          )}
                         </ul>
                       </div>
                     </div>
